@@ -1,15 +1,36 @@
 const { query } = require('../database');
 const { EMPTY_RESULT_ERROR, SQL_ERROR_CODE, UNIQUE_VIOLATION_ERROR } = require('../errors');
 
+
 module.exports.create = function create(code, name, credit) {
-    const sql = `INSERT INTO module (mod_code, mod_name, credit_unit) VALUES ($1, $2, $3)`;
-    return query(sql, [code, name, credit]).catch(function (error) {
-        if (error.code === SQL_ERROR_CODE.UNIQUE_VIOLATION) {
-            throw new UNIQUE_VIOLATION_ERROR(`Module ${code} already exists`);
-        }
-        throw error;
+return query('CALL create_module($1, $2, $3)', [code, name, credit])
+.then(function (result) {
+console.log('Module created successfully');
+})
+.catch(function (error) {
+throw error;
+});
+};
+module.exports.updateModule = function updateModule(code, name, credit) {
+  return query('CALL update_module($1, $2, $3)', [code, name, credit])
+    .then(() => {
+      console.log(`Module ${code} updated successfully`);
+    })
+    .catch(error => {
+      throw error;
     });
 };
+module.exports.deleteModule = function deleteModule(code) {
+  return query('CALL delete_module($1)', [code])
+    .then(() => {
+      console.log(`Module ${code} deleted successfully`);
+    })
+    .catch(error => {
+      throw error;
+    });
+};
+
+
 
 module.exports.retrieveByCode = function retrieveByCode(code) {
     const sql = `SELECT * FROM module WHERE mod_code = $1`;
