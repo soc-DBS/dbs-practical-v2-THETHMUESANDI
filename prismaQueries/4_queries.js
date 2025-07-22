@@ -17,53 +17,57 @@ function getHodInfo() {
   });
 }
 
-async function getDeptStaffingInfo() {
-  const result = await prisma.staff.groupBy({
-    by: ["deptCode"],
-    _count: {
-      deptCode: true,
-    },
-    orderBy: {
+function getDeptStaffingInfo() {
+  return prisma.staff
+    .groupBy({
+      by: ["deptCode"],
       _count: {
-        deptCode: "desc",
+        deptCode: true,
       },
-    },
-  });
-
-  return result.map((entry) => ({
-    deptCode: entry.deptCode,
-    noOfStaff: entry._count.deptCode,
-  }));
+      orderBy: {
+        _count: {
+          deptCode: "desc",
+        },
+      },
+    })
+    .then((result) =>
+      result.map((entry) => ({
+        deptCode: entry.deptCode,
+        noOfStaff: entry._count.deptCode,
+      }))
+    );
 }
 
 /** Section B: Filtering Queries */
 
-async function getStaffofSpecificCitizenships() {
+function getStaffofSpecificCitizenships() {
   const preferredOrder = ["Hong Kong", "Korea", "Malaysia", "Thailand"];
 
-  const staff = await prisma.staff.findMany({
-    where: {
-      citizenship: {
-        in: preferredOrder,
+  return prisma.staff
+    .findMany({
+      where: {
+        citizenship: {
+          in: preferredOrder,
+        },
       },
-    },
-    select: {
-      citizenship: true,
-      staffName: true,
-    },
-  });
-
-  return staff.sort(
-    (a, b) =>
-      preferredOrder.indexOf(a.citizenship) -
-      preferredOrder.indexOf(b.citizenship)
-  );
+      select: {
+        citizenship: true,
+        staffName: true,
+      },
+    })
+    .then((staff) =>
+      staff.sort(
+        (a, b) =>
+          preferredOrder.indexOf(a.citizenship) -
+          preferredOrder.indexOf(b.citizenship)
+      )
+    );
 }
 
 function getStaffByCriteria1() {
   return prisma.staff.findMany({
     where: {
-      maritalStatus: "M", 
+      maritalStatus: "M",
       gender: "M",
       OR: [
         {
@@ -80,18 +84,11 @@ function getStaffByCriteria1() {
         },
       ],
     },
-    orderBy: [
-      {
-        gender: "asc",
-      },
-      {
-        pay: "asc",
-      },
-    ],
+    orderBy: [{ gender: "asc" }, { pay: "asc" }],
     select: {
       gender: true,
-      pay: true,
 
+      pay: true,
       maritalStatus: true,
       staffName: true,
     },
@@ -100,11 +97,9 @@ function getStaffByCriteria1() {
 
 /** Section C: Relation Queries */
 
-async function getDepartmentCourses() {
+function getDepartmentCourses() {
   return prisma.department.findMany({
-    orderBy: {
-      deptName: 'asc', 
-    },
+    orderBy: { deptName: "asc" },
     select: {
       deptName: true,
       course: {
@@ -118,76 +113,75 @@ async function getDepartmentCourses() {
   });
 }
 
-
-
-async function getStaffAndDependents() {
+function getStaffAndDependents() {
   return prisma.staff.findMany({
     where: {
       staffDependent: {
-        some: {} 
-      }
+        some: {},
+      },
     },
     select: {
       staffName: true,
       staffDependent: {
         select: {
           dependentName: true,
-          relationship: true
-        }
-      }
+          relationship: true,
+        },
+      },
     },
     orderBy: {
-      staffName: 'asc'
-    }
+      staffName: "asc",
+    },
   });
 }
 
-
-async function getDepartmentCourseStudentDob() {
+function getDepartmentCourseStudentDob() {
   return prisma.department.findMany({
     where: {
       course: {
         some: {
           student: {
-            some: {} 
-          }
-        }
-      }
+            some: {},
+          },
+        },
+      },
     },
     select: {
       deptName: true,
       course: {
         where: {
           student: {
-            some: {}
-          }
+            some: {},
+          },
         },
         select: {
           crseName: true,
           student: {
             select: {
               studName: true,
-              dob: true
+              dob: true,
             },
             orderBy: {
-              dob: 'asc' 
-            }
-          }
+              dob: "asc",
+            },
+          },
         },
         orderBy: {
-          crseName: 'asc'
-        }
-      }
+          crseName: "asc",
+        },
+      },
     },
     orderBy: {
-      deptName: 'asc'
-    }
+      deptName: "asc",
+    },
   });
 }
 
+/** Entry point */
 
 async function main(argument) {
   let results;
+
   switch (argument) {
     case "getAllStaff":
       results = await getAllStaff();
@@ -215,12 +209,12 @@ async function main(argument) {
       break;
     default:
       console.log("Invalid argument");
-      break;
+      return;
   }
-  results &&
-    console.log(
-      util.inspect(results, { showHidden: false, depth: null, colors: true })
-    );
+
+  console.log(
+    util.inspect(results, { showHidden: false, depth: null, colors: true })
+  );
 }
 
 main(process.argv[2]);
