@@ -1,101 +1,86 @@
-const { query } = require('../database');
-const { EMPTY_RESULT_ERROR, SQL_ERROR_CODE, UNIQUE_VIOLATION_ERROR } = require('../errors');
-
+const { PrismaClient, Prisma } = require('@prisma/client');
+const prisma = new PrismaClient();
 
 module.exports.create = function create(code, name, credit) {
-return query('CALL create_module($1, $2, $3)', [code, name, credit])
-.then(function (result) {
-console.log('Module created successfully');
-})
-.catch(function (error) {
-throw error;
-});
-};
-module.exports.updateModule = function updateModule(code, name, credit) {
-  return query('CALL update_module($1, $2, $3)', [code, name, credit])
-    .then(() => {
-      console.log(`Module ${code} updated successfully`);
-    })
-    .catch(error => {
-      throw error;
-    });
-};
-module.exports.deleteModule = function deleteModule(code) {
-  return query('CALL delete_module($1)', [code])
-    .then(() => {
-      console.log(`Module ${code} deleted successfully`);
-    })
-    .catch(error => {
-      throw error;
-    });
-};
-
-
-
-module.exports.retrieveByCode = function retrieveByCode(code) {
-    const sql = `SELECT * FROM module WHERE mod_code = $1`;
-    return query(sql, [code]).then(function (result) {
-        const rows = result.rows;
-
-        if (rows.length === 0) {
-            // Note: result.rowCount returns the number of rows processed instead of returned
-            // Read more: https://node-postgres.com/apis/result#resultrowcount-int--null
-            throw new EMPTY_RESULT_ERROR(`Module ${code} not found!`);
+    return prisma.module.create({
+        data: {
+            modCode: code,
+            modName: name,
+            creditUnit: parseInt(credit)  // ✅ Use correct field and ensure it's a number
         }
-
-        return rows[0];
-    });
-};
-
-module.exports.deleteByCode = function deleteByCode(code) {
-    // Note:
-    // If using raw sql: Can use result.rowCount to check the number of rows affected
-    // But if using function/stored procedure, result.rowCount will always return null
-    const sql = `DELETE FROM module WHERE mod_code = $1`;
-    return query(sql, [code]).then(function (result) {
-        const rows = result.rowCount;
-
-        if (rows === 0) {
-            // Note: result.rowCount returns the number of rows processed instead of returned
-            // Read more: https://node-postgres.com/apis/result#resultrowcount-int--null
-            throw new EMPTY_RESULT_ERROR(`Module ${code} not found!`);
+    }).then(function (module) {
+        return module;
+    }).catch(function (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+            if (error.code === 'P2002') {
+                throw new Error(`The module ${code} already exists`);
+            }
         }
-    })
+        throw error;
+    });
 };
 
 module.exports.updateByCode = function updateByCode(code, credit) {
-    // Note:
-    // If using raw sql: Can use result.rowCount to check the number of rows affected
-    // But if using function/stored procedure, result.rowCount will always return null
-    const sql = `UPDATE module SET credit_unit = $1 WHERE mod_code = $2`;
-    return query(sql, [credit, code]).then(function (result) {
-        const rows = result.rowCount;
-
-        if (rows === 0) {
-            // Note: result.rowCount returns the number of rows processed instead of returned
-            // Read more: https://node-postgres.com/apis/result#resultrowcount-int--null
-            throw new EMPTY_RESULT_ERROR(`Module ${code} not found!`);
+    return prisma.module.update({
+        where: { modCode: code },
+        data: { creditUnit: parseInt(credit) }  // ✅ Use correct field and ensure it's a number
+    }).catch(function (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+            if (error.code === 'P2025') {
+                throw new Error(`The module ${code} was not found`);
+            }
         }
-    })
-};
-
-module.exports.retrieveAll = function retrieveAll() {
-    const sql = `SELECT * FROM module`;
-    return query(sql).then(function (result) {
-        return result.rows;
+        throw error;
     });
 };
 
-module.exports.retrieveBulk = function retrieveBulk(codes) {
-    const sql = 'SELECT * FROM module WHERE code IN ($1)';
-    return query(sql, [codes]).then(function (response) {
-        const rows = response.rows;
-        const result = {};
-        for (let i = 0; i < rows.length; i += 1) {
-            const row = rows[i];
-            const code = row.code;
-            result[code] = row;
+module.exports.deleteByCode = async function deleteByCode(code) {
+  try {
+    // 1. Delete all related preRequisite entries
+    await prisma.preRequisite.deleteMany({
+      where: {
+        OR: [
+          { modCode: code },
+          { requisite: code }
+        ]
+      }
+    });
+
+    // 2. Delete all related studModPerformance records
+    await prisma.studModPerformance.deleteMany({
+      where: {
+        modRegistered: code
+      }
+    });
+
+    // 3. Now delete the module itself
+    return await prisma.module.delete({
+      where: { modCode: code }
+    });
+
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2025') {
+        throw new Error(`The module ${code} was not found`);
+      }
+    }
+    throw error;
+  }
+};
+
+module.exports.retrieveAll = function retrieveAll() {
+    return prisma.module.findMany();
+};
+
+module.exports.retrieveByCode = function retrieveByCode(code) {
+    return prisma.module.findUnique({
+        where: { modCode: code }
+    }).then(function (module) {
+        if (!module) {
+            throw new Error(`The module ${code} was not found`);
         }
-        return result;
+        return module;
+    }).catch(function (error) {
+        throw error;
     });
 };
